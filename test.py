@@ -52,13 +52,16 @@ def sample_sentence(hmm, obs_map, n_words=100):
 text = open('data/shakespeare.txt').read()
 obj, obs_map = parse_observations(text)
 
+
 n_unique = len(obs_map.keys())
 n_train = len(obj)
-args = ['./hmm_trainer', '4', '1', str(n_unique), str(n_train)]
+args = ['./hmm_trainer', '16', '100', str(n_unique), str(n_train)]
 for x in obj:
     args.append(str(len(x)))
     for i in x:
         args.append(str(i))
+
+# hmm8 = HMM.unsupervised_HMM(obj, 16, 100)
 
 subprocess.run(args)
 

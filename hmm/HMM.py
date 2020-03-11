@@ -1,42 +1,12 @@
 ########################################
-# CS/CNS/EE 155 2018
-# Problem Set 6
+# CS/CNS/EE 155 2017
+# Problem Set 5
 #
 # Author:       Andrew Kang
-# Description:  Set 6 skeleton code
+# Description:  Set 5 solutions
 ########################################
 
-# You can use this (optional) skeleton code to complete the HMM
-# implementation of set 5. Once each part is implemented, you can simply
-# execute the related problem scripts (e.g. run 'python 2G.py') to quickly
-# see the results from your code.
-#
-# Some pointers to get you started:
-#
-#     - Choose your notation carefully and consistently! Readable
-#       notation will make all the difference in the time it takes you
-#       to implement this class, as well as how difficult it is to debug.
-#
-#     - Read the documentation in this file! Make sure you know what
-#       is expected from each function and what each variable is.
-#
-#     - Any reference to "the (i, j)^th" element of a matrix T means that
-#       you should use T[i][j].
-#
-#     - Note that in our solution code, no NumPy was used. That is, there
-#       are no fancy tricks here, just basic coding. If you understand HMMs
-#       to a thorough extent, the rest of this implementation should come
-#       naturally. However, if you'd like to use NumPy, feel free to.
-#
-#     - Take one step at a time! Move onto the next algorithm to implement
-#       only if you're absolutely sure that all previous algorithms are
-#       correct. We are providing you waypoints for this reason.
-#
-# To get started, just fill in code where indicated. Best of luck!
-
 import random
-import numpy as np
-import sys
 
 class HiddenMarkovModel:
     '''
@@ -50,7 +20,7 @@ class HiddenMarkovModel:
             - There is a start state (see notes on A_start below). There
               is no integer associated with the start state, only
               probabilities in the vector A_start.
-            - There is no end state.
+            - There is no end state. 
 
         Arguments:
             A:          Transition matrix with dimensions L x L.
@@ -64,7 +34,7 @@ class HiddenMarkovModel:
 
         Parameters:
             L:          Number of states.
-            
+
             D:          Number of observations.
             
             A:          The transition matrix.
@@ -79,9 +49,9 @@ class HiddenMarkovModel:
 
         self.L = len(A)
         self.D = len(O[0])
-        self.A = np.array(A)
-        self.O = np.array(O)
-        self.A_start = np.array([1. / self.L for _ in range(self.L)])
+        self.A = A
+        self.O = O
+        self.A_start = [1. / self.L for _ in range(self.L)]
 
 
     def viterbi(self, x):
@@ -94,35 +64,55 @@ class HiddenMarkovModel:
                         consisting of integers ranging from 0 to D - 1.
 
         Returns:
-            max_seq:    State sequence corresponding to x with the highest
+            max_seq:    Output sequence corresponding to x with the highest
                         probability.
         '''
 
         M = len(x)      # Length of sequence.
-        probs = np.zeros((M, self.L))
-        seqs =  np.zeros((M, self.L), dtype=int)
 
-        for i in range(self.L):
-            probs[0, i] = self.A_start[i] * self.O[i, x[0]]
-            seqs[0, i] = 0
-  
+        # The (i, j)^th elements of probs and seqs are the max probability
+        # of the prefix of length i ending in state j and the prefix
+        # that gives this probability, respectively.
+        #
+        # For instance, probs[1][0] is the probability of the prefix of
+        # length 1 ending in state 0.
+        probs = [[0. for _ in range(self.L)] for _ in range(M + 1)]
+        seqs = [['' for _ in range(self.L)] for _ in range(M + 1)]
 
-        for j in range(1, M):
-            for i in range(self.L):
-                v = probs[j - 1, :] * self.A[:, i] * self.O[i, x[j]]
-                probs[j, i] = np.amax(v)
-                seqs[j, i] = np.argmax(v)
+        # Calculate initial prefixes and probabilities.
+        for curr in range(self.L):
+            probs[1][curr] = self.A_start[curr] * self.O[curr][x[0]]
+            seqs[1][curr] = str(curr)
 
-        max_seq = ''
-        
-        z = np.argmax(probs[M - 1])
-        max_seq += str(z)
+        # Calculate best prefixes and probabilities throughout sequence.
+        for t in range(2, M + 1):
+            # Iterate over all possible current states.
+            for curr in range(self.L):
+                max_prob = float("-inf")
+                max_prefix = ''
 
-        for j in reversed(range(1, M)):
-            z = seqs[j, z]
-            max_seq += str(z)
+                # Iterate over all possible previous states to find one
+                # that would maximize the probability of the current state.
+                for prev in range(self.L):
+                    curr_prob = probs[t - 1][prev] \
+                                * self.A[prev][curr] \
+                                * self.O[curr][x[t - 1]]
 
-        return max_seq[::-1]
+                    # Continually update max probability and prefix.
+                    if curr_prob >= max_prob:
+                        max_prob = curr_prob
+                        max_prefix = seqs[t - 1][prev]
+
+                # Store the max probability and prefix.
+                probs[t][curr] = max_prob
+                seqs[t][curr] = max_prefix + str(curr)
+
+        # Find the index of the max probability of a sequence ending in x^M
+        # and the corresponding output sequence.
+        max_i = max(enumerate(probs[-1]), key=lambda x: x[1])[0]
+        max_seq = seqs[-1][max_i]
+
+        return max_seq
 
 
     def forward(self, x, normalize=False):
@@ -151,22 +141,35 @@ class HiddenMarkovModel:
         '''
 
         M = len(x)      # Length of sequence.
-        alphas = np.zeros((M + 1, self.L))
+        alphas = [[0. for _ in range(self.L)] for _ in range(M + 1)]
 
-        for i in range(self.L):
-            alphas[1, i] = self.A_start[i] * self.O[i, x[0]]  
+        # Note that alpha_j(0) is already correct for all j's.
+        # Calculate alpha_j(1) for all j's.
+        for curr in range(self.L):
+            alphas[1][curr] = self.A_start[curr] * self.O[curr][x[0]]
 
-        for i in range(1, M):
-            acc = 0.0
-            for z in range(self.L):
-                for j in range(self.L):
-                    q = alphas[i, j] * self.A[j, z] * self.O[z, x[i]]
-                    alphas[i + 1, z] += q
-                    acc += q
-                    
+        # Calculate alphas throughout sequence.
+        for t in range(1, M):
+            # Iterate over all possible current states.
+            for curr in range(self.L):
+                prob = 0
+
+                # Iterate over all possible previous states to accumulate
+                # the probabilities of all paths from the start state to
+                # the current state.
+                for prev in range(self.L):
+                    prob += alphas[t][prev] \
+                            * self.A[prev][curr] \
+                            * self.O[curr][x[t]]
+
+                # Store the accumulated probability.
+                alphas[t + 1][curr] = prob
+
             if normalize:
-                alphas[i + 1] /= acc
-        
+                norm = sum(alphas[t + 1])
+                for curr in range(self.L):
+                    alphas[t + 1][curr] /= norm
+
         return alphas
 
 
@@ -196,21 +199,40 @@ class HiddenMarkovModel:
         '''
 
         M = len(x)      # Length of sequence.
-        betas = np.zeros((M + 1, self.L))
+        betas = [[0. for _ in range(self.L)] for _ in range(M + 1)]
 
-        for i in range(self.L):
-            betas[M, i] = 1
+        # Initialize initial betas.
+        for curr in range(self.L):
+            betas[-1][curr] = 1
 
-        for i in reversed(range(0, M)):
-            acc = 0.0
-            for z in range(self.L):
-                for j in range(self.L):
-                    q = betas[i + 1, j] * self.A[z][j] * self.O[j][x[i]] 
-                    betas[i, z] += q
-                    acc += q;
+        # Calculate betas throughout sequence.
+        for t in range(-1, -M - 1, -1):
+            # Iterate over all possible current states.
+            for curr in range(self.L):
+                prob = 0
+
+                # Iterate over all possible next states to accumulate
+                # the probabilities of all paths from the end state to
+                # the current state.
+                for nxt in range(self.L):
+                    if t == -M:
+                        prob += betas[t][nxt] \
+                                * self.A_start[nxt] \
+                                * self.O[nxt][x[t]]
+
+                    else:
+                        prob += betas[t][nxt] \
+                                * self.A[curr][nxt] \
+                                * self.O[nxt][x[t]]
+
+                # Store the accumulated probability.
+                betas[t - 1][curr] = prob
+
             if normalize:
-                betas[i] /= acc
-        
+                norm = sum(betas[t - 1])
+                for curr in range(self.L):
+                    betas[t - 1][curr] /= norm
+
         return betas
 
 
@@ -236,49 +258,40 @@ class HiddenMarkovModel:
         '''
 
         # Calculate each element of A using the M-step formulas.
+        for curr in range(self.L):
+            for nxt in range(self.L):
+                num = 0.
+                den = 0.
 
-        for a in range(self.L):
-            for b in range(self.L):
-                num = 0.0
-                den = 0.0
-                for j in range(len(Y)):
-                    for i in range(len(Y[j]) - 1):
-                        if Y[j][i + 1] == b and Y[j][i] == a:
-                            num += 1.0
-                        if Y[j][i] == a:
-                            den += 1.0
-            
-                self.A[a][b] = num / den
+                for i in range(len(X)):
+                    x = X[i]
+                    y = Y[i]
+                    M = len(x)
+        
+                    num += len([1 for i in range(M - 1) \
+                                if y[i] == curr and y[i + 1] == nxt])
+                    den += len([1 for i in range(M - 1) if y[i] == curr])
 
-          
+                self.A[curr][nxt] = num / den
 
         # Calculate each element of O using the M-step formulas.
+        for curr in range(self.L):
+            for xt in range(self.D):
+                num = 0.
+                den = 0.
+
+                for i in range(len(X)):
+                    x = X[i]
+                    y = Y[i]
+                    M = len(x)
         
-        for z in range(self.L):
-            for w in range(self.D):
-                num = 0.0
-                den = 0.0
-                for j in range(len(Y)):
-                    for i in range(len(Y[j])):
-                        if X[j][i] == w and Y[j][i] == z:
-                            num += 1.0
-                        if Y[j][i] == z:
-                            den += 1.0
-            
-                self.O[z][w] = num / den
+                    num += len([1 for i in range(M) \
+                                if y[i] == curr and x[i] == xt])
+                    den += len([1 for i in range(M) if y[i] == curr])
+
+                self.O[curr][xt] = num / den
 
 
-    def drawProgressBar(self, epoch, max_epoch, percent, barLen = 20):
-        sys.stdout.write("\r")
-        progress = ""
-        for i in range(barLen):
-            if i < int(barLen * percent):
-                progress += "="
-            else:
-                progress += " "
-        sys.stdout.write("epoch: %d/%d [%s] %.2f%%" % (epoch, max_epoch,progress, percent * 100))
-        sys.stdout.flush()
-    
     def unsupervised_learning(self, X, N_iters):
         '''
         Trains the HMM using the Baum-Welch algorithm on an unlabeled
@@ -293,69 +306,81 @@ class HiddenMarkovModel:
             N_iters:    The number of iterations to train on.
         '''
 
-        # Calculate each element of A using the M-step formulas.
-        for epoch in range(N_iters):
-                        
-            A_num = np.zeros((self.L, self.L))
-            A_den = np.zeros((self.L, self.L))
-            O_num = np.zeros((self.L, self.D))
-            O_den = np.zeros((self.L, self.D))
-            
-           
-            for x, i in zip(X, range(len(X))):
-                self.drawProgressBar(epoch, N_iters, i / len(X), 50)
+        # Note that a comment starting with 'E' refers to the fact that
+        # the code under the comment is part of the E-step.
 
-                alpha = self.forward(x, normalize=True)
-                beta = self.backward(x, normalize=True)     
+        # Similarly, a comment starting with 'M' refers to the fact that
+        # the code under the comment is part of the M-step.
 
-               
-                prob_ones = np.zeros((len(x), self.L))
-                prob_twos = np.zeros((len(x), self.L, self.L))
+        for iteration in range(1, N_iters + 1):
+            if iteration % 10 == 0:
+                print("Iteration: " + str(iteration))
 
-                def prob_one(i, z):
-                    n = alpha[i][z] * beta[i][z]
-                    d = np.sum(alpha[i] * beta[i])
-                    return n / d
+            # Numerator and denominator for the update terms of A and O.
+            A_num = [[0. for i in range(self.L)] for j in range(self.L)]
+            O_num = [[0. for i in range(self.D)] for j in range(self.L)]
+            A_den = [0. for i in range(self.L)]
+            O_den = [0. for i in range(self.L)]
 
-                for i in range(1, len(x) + 1):
-                    for z in range(self.L):
-                        prob_ones[i - 1][z] = prob_one(i, z)
+            # For each input sequence:
+            for x in X:
+                M = len(x)
+                # Compute the alpha and beta probability vectors.
+                alphas = self.forward(x, normalize=True)
+                betas = self.backward(x, normalize=True)
+
+                # E: Update the expected observation probabilities for a
+                # given (x, y).
+                # The i^th index is P(y^t = i, x).
+                for t in range(1, M + 1):
+                    P_curr = [0. for _ in range(self.L)]
                     
-                def prob_two_num(i, a, b):
-                    return alpha[i][a] * self.A[a][b] * self.O[b][x[i]] * beta[i+1][b]
+                    for curr in range(self.L):
+                        P_curr[curr] = alphas[t][curr] * betas[t][curr]
 
-                def prob_two_den(i):
-                    acc = 0.0
-                    for a in range(self.L):
-                        for b in range(self.L):
-                            acc += prob_two_num(i, a, b)
-                    return acc
+                    # Normalize the probabilities.
+                    norm = sum(P_curr)
+                    for curr in range(len(P_curr)):
+                        P_curr[curr] /= norm
 
-                def prob_two(k, a, b):
-                    return prob_two_num(i, a, b) / prob_two_den(i)
+                    for curr in range(self.L):
+                        if t != M:
+                            A_den[curr] += P_curr[curr]
+                        O_den[curr] += P_curr[curr]
+                        O_num[curr][x[t - 1]] += P_curr[curr]
 
-                for i in range(1, len(x)):
-                    for a in range(self.L):
-                        for b in range(self.L):
-                            prob_twos[i - 1][a][b] = prob_two_num(i, a, b) / prob_two_den(i)
-                        
-                for a in range(self.L):
-                    for b in range(self.L):
-                        for i in range(len(x) - 1):
-                            A_num[a][b] += prob_twos[i, a, b]
-                            A_den[a][b] += prob_ones[i, a]  
+                # E: Update the expectedP(y^j = a, y^j+1 = b, x) for given (x, y)
+                for t in range(1, M):
+                    P_curr_nxt = [[0. for _ in range(self.L)] for _ in range(self.L)]
 
-                # Calculate each element of O using the M-step formulas.
-                for z in range(self.L):
-                    for w in range(self.D):
-                        for i in range(len(x)):
-                            if x[i] == w:
-                                O_num[z][w] += prob_ones[i, z]
-                            O_den[z][w] += prob_ones[i, z]
+                    for curr in range(self.L):
+                        for nxt in range(self.L):
+                            P_curr_nxt[curr][nxt] = alphas[t][curr] \
+                                                    * self.A[curr][nxt] \
+                                                    * self.O[nxt][x[t]] \
+                                                    * betas[t + 1][nxt]
 
-            self.A = A_num / A_den
-            self.O = O_num / O_den
-            
+                    # Normalize:
+                    norm = 0
+                    for lst in P_curr_nxt:
+                        norm += sum(lst)
+                    for curr in range(self.L):
+                        for nxt in range(self.L):
+                            P_curr_nxt[curr][nxt] /= norm
+
+                    # Update A_num
+                    for curr in range(self.L):
+                        for nxt in range(self.L):
+                            A_num[curr][nxt] += P_curr_nxt[curr][nxt]
+
+            for curr in range(self.L):
+                for nxt in range(self.L):
+                    self.A[curr][nxt] = A_num[curr][nxt] / A_den[curr]
+
+            for curr in range(self.L):
+                for xt in range(self.D):
+                    self.O[curr][xt] = O_num[curr][xt] / O_den[curr]
+
     def generate_emission(self, M):
         '''
         Generates an emission of length M, assuming that the starting state
@@ -369,17 +394,38 @@ class HiddenMarkovModel:
 
             states:     The randomly generated states as a list.
         '''
+
         emission = []
+        state = random.choice(range(self.L))
         states = []
-        weight = self.A_start
-        for i in range(M + 1):
-            last = np.random.choice(self.L, p=weight)
-            weight2 = self.O[last]
-            out = np.random.choice(self.D, p=weight2)
-            states.append(last)
-            emission.append(out)
-            weight = self.A[last]
-        return emission[1:], states[1:]
+
+        for t in range(M):
+            # Append state.
+            states.append(state)
+
+            # Sample next observation.
+            rand_var = random.uniform(0, 1)
+            next_obs = 0
+
+            while rand_var > 0:
+                rand_var -= self.O[state][next_obs]
+                next_obs += 1
+
+            next_obs -= 1
+            emission.append(next_obs)
+
+            # Sample next state.
+            rand_var = random.uniform(0, 1)
+            next_state = 0
+
+            while rand_var > 0:
+                rand_var -= self.A[state][next_state]
+                next_state += 1
+
+            next_state -= 1
+            state = next_state
+
+        return emission, states
 
 
     def probability_alphas(self, x):
@@ -398,10 +444,10 @@ class HiddenMarkovModel:
         # Calculate alpha vectors.
         alphas = self.forward(x)
 
-        # alpha_j(M) gives the probability that the state sequence ends
+        # alpha_j(M) gives the probability that the output sequence ends
         # in j. Summing this value over all possible states j gives the
-        # total probability of x paired with any state sequence, i.e.
-        # the probability of x.
+        # total probability of x paired with any output sequence, i.e. the
+        # probability of x.
         prob = sum(alphas[-1])
         return prob
 
@@ -421,13 +467,12 @@ class HiddenMarkovModel:
 
         betas = self.backward(x)
 
-        # beta_j(1) gives the probability that the state sequence starts
-        # with j. Summing this, multiplied by the starting transition
-        # probability and the observation probability, over all states
-        # gives the total probability of x paired with any state
-        # sequence, i.e. the probability of x.
-        prob = sum([betas[1][j] * self.A_start[j] * self.O[j][x[0]] \
-                    for j in range(self.L)])
+        # beta_j(0) gives the probability of the output sequence. Summing
+        # this over all states and then normalizing gives the total
+        # probability of x paired with any output sequence, i.e. the
+        # probability of x.
+        prob = sum([betas[1][k] * self.A_start[k] * self.O[k][x[0]] \
+            for k in range(self.L)])
 
         return prob
 
@@ -449,6 +494,7 @@ def supervised_HMM(X, Y):
                     ranging from 0 to L - 1. In other words, a list of lists.
                     Note that the elements in X line up with those in Y.
     '''
+
     # Make a set of observations.
     observations = set()
     for x in X:
@@ -463,8 +509,7 @@ def supervised_HMM(X, Y):
     L = len(states)
     D = len(observations)
 
-    
-    # Randomly initialize and normalize matrix A.
+    # Randomly initialize and normalize matrices A and O.
     A = [[random.random() for i in range(L)] for j in range(L)]
 
     for i in range(len(A)):
@@ -472,8 +517,6 @@ def supervised_HMM(X, Y):
         for j in range(len(A[i])):
             A[i][j] /= norm
     
-
-    # Randomly initialize and normalize matrix O.
     O = [[random.random() for i in range(D)] for j in range(L)]
 
     for i in range(len(O)):
@@ -486,6 +529,7 @@ def supervised_HMM(X, Y):
     HMM.supervised_learning(X, Y)
 
     return HMM
+
 
 def unsupervised_HMM(X, n_states, N_iters):
     '''
@@ -504,7 +548,6 @@ def unsupervised_HMM(X, n_states, N_iters):
         N_iters:    The number of iterations to train on.
     '''
 
-    
     # Make a set of observations.
     observations = set()
     for x in X:
@@ -514,8 +557,7 @@ def unsupervised_HMM(X, n_states, N_iters):
     L = n_states
     D = len(observations)
 
-    # Randomly initialize and normalize matrix A.
-    random.seed(2020)
+    # Randomly initialize and normalize matrices A and O.
     A = [[random.random() for i in range(L)] for j in range(L)]
 
     for i in range(len(A)):
@@ -524,7 +566,6 @@ def unsupervised_HMM(X, n_states, N_iters):
             A[i][j] /= norm
     
     # Randomly initialize and normalize matrix O.
-    random.seed(155)
     O = [[random.random() for i in range(D)] for j in range(L)]
 
     for i in range(len(O)):
