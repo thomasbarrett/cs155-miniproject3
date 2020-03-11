@@ -5,6 +5,10 @@
 #include <math.h>
 #include <assert.h>
 
+/**
+ * Hidden 
+ * 
+ */
 typedef struct hmm {
     int L;
     int D;
@@ -12,7 +16,6 @@ typedef struct hmm {
     double *O;
     double *A_start;
 } hmm_t;
-
 
 double hmm_A(hmm_t *hmm, int i, int j) {
     assert(i >= 0 && i < hmm->L);
@@ -26,30 +29,13 @@ double hmm_O(hmm_t *hmm, int i, int j) {
     return hmm->O[i * hmm->D + j];
 } 
 
-void draw_progress_bar(int epoch, int max_epoch) {
-    int length = 50;
-    double percent =  (double) epoch / (max_epoch - 1);
-    printf("\r[");
-    for (int i = 0; i < length; i++) {
-        if (i < (int) (length * percent)) {
-            printf("=");
-        } else {
-            printf(" ");
-        }  
-    }
-    printf("] %.2f%%", percent * 100);
-    fflush(stdout);
-}
-
 void hmm_init_A(hmm_t *hmm) {
     for (int i = 0; i < hmm->L; i++) {
         for (int j = 0; j < hmm->L; j++) {
             hmm->A[i * hmm->L + j] = (double) rand() / RAND_MAX;
         }
     }
-}
 
-void hmm_normalize_A(hmm_t *hmm) {
     for (int i = 0; i < hmm->L; i++) {
         double acc = 0.0;
         for (int j = 0; j < hmm->L; j++) {
@@ -61,15 +47,17 @@ void hmm_normalize_A(hmm_t *hmm) {
     }
 }
 
+void hmm_normalize_A(hmm_t *hmm) {
+   
+}
+
 void hmm_init_O(hmm_t *hmm) {
     for (int i = 0; i < hmm->L; i++) {
         for (int j = 0; j < hmm->D; j++) {
             hmm->O[i * hmm->D + j] = (double) rand() / RAND_MAX;
         }
     }
-}
 
-void hmm_normalize_O(hmm_t *hmm) {
     for (int i = 0; i < hmm->L; i++) {
         double acc = 0.0;
         for (int j = 0; j < hmm->D; j++) {
@@ -81,22 +69,18 @@ void hmm_normalize_O(hmm_t *hmm) {
     }
 }
 
-void hmm_printA(hmm_t *hmm) {
-    for (int i = 0; i < hmm->L; i++) {
-        for (int j = 0; j < hmm->L; j++) {
-            printf("%f ", hmm->A[i * hmm->L + j]);
+void draw_progress_bar(epoch, n_epoch) {
+    double progress = (double) (epoch) / n_epoch;
+    printf("\r[");
+    for (int i = 0; i < 50; i++) {
+        if (i < (int)(50 * progress)) {
+            printf("=");
+        } else {
+            printf(" ");
         }
     }
-    printf("\n");
-}
-
-void hmm_printO(hmm_t *hmm) {
-    for (int i = 0; i < hmm->L; i++) {
-        for (int j = 0; j < hmm->D; j++) {
-            printf("%f ", hmm->O[i * hmm->D + j]);
-        }
-    }
-    printf("\n");
+    printf("] %.2f%%", progress * 100);
+    fflush(stdout);
 }
 
 hmm_t* hmm_create(int L, int D, double *A, double *O) {
@@ -107,10 +91,7 @@ hmm_t* hmm_create(int L, int D, double *A, double *O) {
     hmm->O = O;
 
     hmm_init_A(hmm);
-    hmm_normalize_A(hmm);
-
     hmm_init_O(hmm);
-    hmm_normalize_O(hmm);
 
     hmm->A_start = malloc(sizeof(double) * L);
     for (int i = 0; i < L; i++) {
@@ -174,8 +155,9 @@ void hmm_unsupervised_learning(hmm_t *self, int N, int *Ms, int **Xs, int n_iter
 
     for (int iteration = 1; iteration <= n_iters; iteration++) {
         if (iteration % 10 == 0) {
-            printf("Iteration: %d\n", iteration);
+            draw_progress_bar(iteration, n_iters);
         }
+        
         double A_num[self->L][self->L];
         double O_num[self->L][self->D];
         double A_den[self->L];
@@ -195,6 +177,7 @@ void hmm_unsupervised_learning(hmm_t *self, int N, int *Ms, int **Xs, int n_iter
             hmm_forward(self, M, x, (double*) &alphas);
             hmm_backward(self, M, x, (double*) &betas);
         
+            /* Compute A_den */
             for (int t = 1; t < M + 1; t++) {
                 double P_curr[self->L];
                 double P_curr_norm = 0.0;
@@ -218,6 +201,7 @@ void hmm_unsupervised_learning(hmm_t *self, int N, int *Ms, int **Xs, int n_iter
                 }
             }
 
+            /* Compute A_num */
             for (int t = 1; t < M; t++) {
                 double P_curr_nxt[self->L][self->L];
                 double P_curr_nxt_norm = 0.0;
@@ -242,22 +226,21 @@ void hmm_unsupervised_learning(hmm_t *self, int N, int *Ms, int **Xs, int n_iter
             }
         }
 
+        /* Update A */
         for (int curr = 0; curr < self->L; curr++) {
-            double A_norm = 0.0;
             for (int nxt = 0; nxt < self->L; nxt++) {
                 self->A[curr * self->L + nxt] = A_num[curr][nxt] / A_den[curr];
-                A_norm += self->A[curr * self->L + nxt];
             }
         }
 
+        /* Update O */
         for (int curr = 0; curr < self->L; curr++) {
-            double O_norm = 0.0;
             for (int nxt = 0; nxt < self->D; nxt++) {
                 self->O[curr * self->D + nxt] = O_num[curr][nxt] / O_den[curr];
-                O_norm += self->O[curr * self->D + nxt];
             }
         }
     }
+    printf("\n");
 }
 
 /*
@@ -280,22 +263,38 @@ int main(int argc, char const *argv[]) {
         }
     }
 
-    double *A = (double *) calloc(n_states * n_states, sizeof(double));
-    double *O = (double *) calloc(n_states * n_unique, sizeof(double));
+    double A[n_states][n_states];
+    double O[n_states][n_unique];
+    memset(&A, 0, n_states * n_states * sizeof(double));
+    memset(&O, 0, n_states * n_unique * sizeof(double));
 
-    srand(2020);
+    srand(time(NULL));
 
-    hmm_t *hmm = hmm_create(n_states, n_unique, A, O);
+    hmm_t *hmm = hmm_create(n_states, n_unique, (double *) A, (double *) O);
     hmm_unsupervised_learning(hmm, N, Ms, Xs, n_iters);
 
-    printf("A\n");
-    hmm_printA(hmm);
+    FILE *A_out = fopen("./A.csv", "w+");
+    assert(A_out != NULL);
+    for (int i = 0; i < n_states; i++) {
+        for (int j = 0; j < n_states; j++) {
+            if (j != 0) fprintf(A_out, ", ");
+            fprintf(A_out, "%f", A[i][j]);
+        }
+        fprintf(A_out, "\n");        
+    }
+    fclose(A_out);
 
-    printf("O\n");
-    hmm_printO(hmm);
+    FILE *O_out = fopen("./O.csv", "w+");
+    assert(O_out != NULL);
+    for (int i = 0; i < n_states; i++) {
+        for (int j = 0; j < n_unique; j++) {
+            if (j != 0) fprintf(O_out, ", ");
+            fprintf(O_out, "%f ", O[i][j]);
+        }  
+        fprintf(O_out, "\n");              
+    }
+    fclose(O_out);
 
-    free(A);
-    free(O);
     free(hmm->A_start);
     free(hmm);
 

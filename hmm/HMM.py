@@ -7,6 +7,7 @@
 ########################################
 
 import random
+import numpy as np
 
 class HiddenMarkovModel:
     '''
@@ -52,6 +53,16 @@ class HiddenMarkovModel:
         self.A = A
         self.O = O
         self.A_start = [1. / self.L for _ in range(self.L)]
+
+    def draw_progress_bar(self, epoch, n_epoch):
+        progress = epoch / n_epoch
+        print("\r[", end='')
+        for i in range(50):
+            if i < int(50 * progress):
+                print("=", end='')
+            else:
+                print(" ", end='')
+        print("] {:.2f}%".format(progress * 100), end='', flush=True)
 
 
     def viterbi(self, x):
@@ -313,8 +324,7 @@ class HiddenMarkovModel:
         # the code under the comment is part of the M-step.
 
         for iteration in range(1, N_iters + 1):
-            if iteration % 10 == 0:
-                print("Iteration: " + str(iteration))
+            self.draw_progress_bar(iteration, N_iters)
 
             # Numerator and denominator for the update terms of A and O.
             A_num = [[0. for i in range(self.L)] for j in range(self.L)]
@@ -381,6 +391,8 @@ class HiddenMarkovModel:
                 for xt in range(self.D):
                     self.O[curr][xt] = O_num[curr][xt] / O_den[curr]
 
+        print()
+
     def generate_emission(self, M):
         '''
         Generates an emission of length M, assuming that the starting state
@@ -406,6 +418,9 @@ class HiddenMarkovModel:
             # Sample next observation.
             rand_var = random.uniform(0, 1)
             next_obs = 0
+
+            self.O[state] /= np.sum(self.O[state])
+            self.A[state] /= np.sum(self.A[state])
 
             while rand_var > 0:
                 rand_var -= self.O[state][next_obs]
