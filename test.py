@@ -8,9 +8,23 @@ import subprocess
 import numpy as np
 import time
 
+def word_pairs(line):
+    pairs = []
+    words = line.split()
+    for i in range(int(len(words)/2)):
+        pairs.append(words[2 * i] + ' ' + words[2 * i + 1])
+    return pairs
+
+def split_stanzas(text):
+    stanzas = []
+    for line in text.split('\n'):
+def build_rhyming_dictionary(text):
+    print(text.split('\n'))
+    
 def parse_observations(text):
     # Convert text to dataset.
     lines = [line.split() for line in text.split('\n') if line.split()]
+    # lines = [word_pairs(line) for line in text.split('\n') if len(word_pairs(line)) > 1]
 
     obs_counter = 0
     obs = []
@@ -20,7 +34,7 @@ def parse_observations(text):
         obs_elem = []
         
         for word in line:
-            word = re.sub(r'[^\w]', '', word).lower()
+            word = word.lower().strip()
             if word not in obs_map:
                 obs_map[word] = obs_counter
                 obs_counter += 1
@@ -39,10 +53,11 @@ def sample_sentence(hmm, obs_map, n_words=100):
     obs_map_r = obs_map_reverser(obs_map)
     emission, states = hmm.generate_emission(n_words)
     sentence = [obs_map_r[i] for i in emission]
-    return ' '.join(sentence).capitalize() + '...'
+    return ' '.join(sentence).capitalize()
 
-text = open('data/shakespeare.txt').read()
+text = open('data/spenser.txt').read()
 obj, obs_map = parse_observations(text)
+build_rhyming_dictionary(text)
 
 def train_unsupervised_hmm(seqs, obs_map, hidden_states, epochs):
     n_unique = len(obs_map.keys()) + 1
@@ -69,14 +84,19 @@ hmm = train_unsupervised_hmm(obj, obs_map, 8, 100)
 end = time.time()
 elapsed1 = end - start
 print('elapsed time: {:.4} seconds'.format(end - start))
-print(sample_sentence(hmm, obs_map, n_words=10))
+print()
+for i in range(8):
+    print(sample_sentence(hmm, obs_map, n_words=4))
 print()
 
+
+'''
 start = time.time()
-hmm = unsupervised_HMM(obj, 8, 100)
+hmm = unsupervised_HMM(obj, 16, 100)
 end = time.time()
 elapsed2 = end - start
 print('elapsed time: {:.4} seconds'.format(end - start))
 print(sample_sentence(hmm, obs_map, n_words=10))
+'''
 
 print(f'python is {int(elapsed2 / elapsed1)}x slower!')
