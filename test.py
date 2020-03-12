@@ -15,12 +15,51 @@ def word_pairs(line):
         pairs.append(words[2 * i] + ' ' + words[2 * i + 1])
     return pairs
 
+def strip_punctuation(text):
+    exclude = [',','.',';',':','!','?','(',')']
+    return ''.join(c for c in text if c not in exclude)
+
+def last_word(text):
+    return text.split()[-1]
+
 def split_stanzas(text):
     stanzas = []
+    stanza = []
     for line in text.split('\n'):
-def build_rhyming_dictionary(text):
-    print(text.split('\n'))
-    
+        if line == '' and len(stanza) == 14:
+            stanzas.append(stanza)
+            stanza = []
+        elif len(line.split()) > 1:
+            stanza.append(line.strip().lower())
+    return stanzas
+
+def gather_rhymes(w, lst, dic):
+    for rhyme in dic[w]:
+        if not rhyme in lst:
+            lst.append(rhyme)
+            gather_rhymes(rhyme, lst, dic)
+
+def build_rhyming_dictionary(text, obs_map):
+    rhyme_pattern = [2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 13, 12]
+    rhymes_used = {}
+    rhymes = {}
+
+    for stanza in split_stanzas(text):
+        for a, b in enumerate(rhyme_pattern):
+            a_last = strip_punctuation(last_word(stanza[a]))
+            b_last = strip_punctuation(last_word(stanza[b]))
+            if a_last in rhymes_used:
+                rhymes_used[a_last].append(b_last)
+            else:
+                rhymes_used[a_last] = [b_last]
+
+    for word in rhymes_used.keys():
+        all_rhymes = []
+        if word in obs_map:
+            gather_rhymes(word, all_rhymes, rhymes_used)
+            rhymes[obs_map[word]] = [obs_map[rhyme] for rhyme in all_rhymes if rhyme in obs_map and rhyme != word]
+    return rhymes
+
 def parse_observations(text):
     # Convert text to dataset.
     lines = [line.split() for line in text.split('\n') if line.split()]
@@ -34,7 +73,7 @@ def parse_observations(text):
         obs_elem = []
         
         for word in line:
-            word = word.lower().strip()
+            word = strip_punctuation(word.lower().strip())
             if word not in obs_map:
                 obs_map[word] = obs_counter
                 obs_counter += 1
@@ -55,9 +94,33 @@ def sample_sentence(hmm, obs_map, n_words=100):
     sentence = [obs_map_r[i] for i in emission]
     return ' '.join(sentence).capitalize()
 
-text = open('data/spenser.txt').read()
+def generate_stanza(hmm, obs_map, rhymes):
+    stanza = []
+    rhyme_pattern = [2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 13, 12]
+    chosen_rhymes = []
+    for i in range(14):   
+        if rhyme_pattern[i] > i:
+            obs_map_r = obs_map_reverser(obs_map)
+            emission, states = hmm.generate_emission(6)
+            sentence = [obs_map_r[i] for i in emission]
+            chosen_rhyme = np.random.choice(list(rhymes.keys()))
+            chosen_rhymes.append(chosen_rhyme)
+            sentence.append(obs_map_r[chosen_rhyme])
+            stanza.append(' '.join(sentence).capitalize())
+        else:
+            obs_map_r = obs_map_reverser(obs_map)
+            emission, states = hmm.generate_emission(6)
+            sentence = [obs_map_r[i] for i in emission]
+            chosen_rhyme = np.random.choice(rhymes[chosen_rhymes[rhyme_pattern[i]]])
+            chosen_rhymes.append(chosen_rhyme)
+            sentence.append(obs_map_r[chosen_rhyme])
+            stanza.append(' '.join(sentence).capitalize())
+
+    return '\n'.join(stanza)
+
+text = open('data/shakespeare.txt').read()
 obj, obs_map = parse_observations(text)
-build_rhyming_dictionary(text)
+rhymes = build_rhyming_dictionary(text, obs_map)
 
 def train_unsupervised_hmm(seqs, obs_map, hidden_states, epochs):
     n_unique = len(obs_map.keys()) + 1
@@ -80,23 +143,10 @@ def train_unsupervised_hmm(seqs, obs_map, hidden_states, epochs):
     return HiddenMarkovModel(A, O)
 
 start = time.time()
-hmm = train_unsupervised_hmm(obj, obs_map, 8, 100)
+hmm = train_unsupervised_hmm(obj, obs_map, 16, 500)
 end = time.time()
 elapsed1 = end - start
 print('elapsed time: {:.4} seconds'.format(end - start))
 print()
-for i in range(8):
-    print(sample_sentence(hmm, obs_map, n_words=4))
+print(generate_stanza(hmm, obs_map, rhymes))
 print()
-
-
-'''
-start = time.time()
-hmm = unsupervised_HMM(obj, 16, 100)
-end = time.time()
-elapsed2 = end - start
-print('elapsed time: {:.4} seconds'.format(end - start))
-print(sample_sentence(hmm, obs_map, n_words=10))
-'''
-
-print(f'python is {int(elapsed2 / elapsed1)}x slower!')
