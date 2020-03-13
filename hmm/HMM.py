@@ -393,7 +393,7 @@ class HiddenMarkovModel:
 
         print()
 
-    def generate_emission(self, M):
+    def generate_emission(self, constraint, count_syllables, M):
         '''
         Generates an emission of length M, assuming that the starting state
         is chosen uniformly at random. 
@@ -411,35 +411,38 @@ class HiddenMarkovModel:
         state = random.choice(range(self.L))
         states = []
 
-        for t in range(M):
-            # Append state.
+        while count_syllables(emission) < M:
+            last = M - count_syllables(emission) <= 2
             states.append(state)
+            O1 = []
+            O2 = []
+            for (i, x) in enumerate(self.O[state]):
+                if constraint(i, last) and not (len(emission) == 0 and i == 0) and (len(emission) == 0 or i != emission[-1]):
+                    O1.append(x)
+                    O2.append(1.0)
+                else:
+                    O1.append(0.0)
+                    O2.append(0.0)
 
-            # Sample next observation.
-            rand_var = random.uniform(0, 1)
-            next_obs = 0
+            # If all rhyming words have probability 0, just choose a rhyming word at random...
+            # Alternatively, break the rhyming pattern...?
+            if np.sum(O1) != 0.0:
+                O = np.array(O1)
+            elif np.sum(O2) != 0.0:
+                O = np.array(O2)
+            else:
+                np.full_like(self.O[0], 1)
 
-            self.O[state] /= np.sum(self.O[state])
-            self.A[state] /= np.sum(self.A[state])
+            A = self.A[state]
+            O /= np.sum(O)
+            A /= np.sum(A)
 
-            while rand_var > 0:
-                rand_var -= self.O[state][next_obs]
-                next_obs += 1
-
-            next_obs -= 1
+            next_obs = np.random.choice(len(O), p=O)
             emission.append(next_obs)
-
-            # Sample next state.
-            rand_var = random.uniform(0, 1)
-            next_state = 0
-
-            while rand_var > 0:
-                rand_var -= self.A[state][next_state]
-                next_state += 1
-
-            next_state -= 1
+            next_state = np.random.choice(len(A), p=A)
             state = next_state
-
+            if last:
+                break
         return emission, states
 
 
