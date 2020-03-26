@@ -119,6 +119,34 @@ def sample_sentence(hmm, obs_map, n_words=100):
     sentence = [obs_map_r[i] for i in emission]
     return ' '.join(sentence).capitalize()
 
+def generate_stanza_original(hmm, obs_map):
+    stanza = []
+    punctuation = [',','.',';',':','!','?']
+    punctuation_weights = [0.35, 0.25, 0.2, 0.05, 0.1, 0.05]
+
+    def capitalize_proper_nouns(sentence1):
+        sentence2 = []
+        for word in sentence1:
+            if word == 'i':
+                sentence2.append('I')
+            else:
+                sentence2.append(word)
+        return sentence2
+
+    def capitalize_first(line):
+        line = line[0].capitalize() + line[1:]
+        return line
+
+    for line_index in range(14):   
+        obs_map_r = obs_map_reverser(obs_map)
+        emission, states = hmm.generate_emission_original(8)
+        line = capitalize_first(' '.join(capitalize_proper_nouns([obs_map_r[i] for i in emission])))
+        stanza.append(''.join([c for (i, c) in enumerate(line) if not (c == ' ' and line[i + 1] == ',')]))
+
+    stanza = list(map(lambda l: l + np.random.choice(punctuation, p=punctuation_weights), stanza))
+    return '\n'.join(stanza[:-2]) + '\n  ' + stanza[-2] + '\n  ' + stanza[-1] 
+
+
 def generate_stanza(hmm, obs_map, rhymes):
     stanza = []
     rhyme_pattern = [2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 13, 12]
@@ -206,6 +234,8 @@ end = time.time()
 elapsed1 = end - start
 print('elapsed time: {:.4} seconds'.format(end - start))
 print()
+
+print(generate_stanza_original(hmm, obs_map))
 
 file = open('generated-poem.txt','w+') 
 for stanza in range(20):
