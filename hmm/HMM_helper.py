@@ -59,7 +59,7 @@ def states_to_wordclouds(hmm, obs_map, max_words=50, show=True):
     wordclouds = []
 
     # Generate a large emission.
-    emission, states = hmm.generate_emission(M)
+    emission, states = hmm.generate_emission_original(M)
 
     # For each state, get a list of observations that have been emitted
     # from that state.
@@ -223,7 +223,7 @@ def animate_emission(hmm, obs_map, M=8, height=12, width=12, delay=1):
             row.append(arrow)
         arrows.append(row)
 
-    emission, states = hmm.generate_emission(M)
+    emission, states = hmm.generate_emission_original(M)
 
     def animate(i):
         if i >= delay:
@@ -246,7 +246,9 @@ def animate_emission(hmm, obs_map, M=8, height=12, width=12, delay=1):
     # Animate!
     print('\nAnimating...')
     anim = FuncAnimation(fig, animate, frames=M+delay, interval=1000)
-
+    Writer = animation.writers['ffmpeg']
+    writer = Writer(fps=15, metadata=dict(artist='Me'), bitrate=1800)
+    anim.save('anim.mp4', writer=writer)
     return anim
 
     # honestly this function is so jank but who even fuckin cares

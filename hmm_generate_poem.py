@@ -2,6 +2,7 @@
 
 from hmm.HMM import HiddenMarkovModel
 from hmm.HMM import unsupervised_HMM
+from hmm.HMM_helper import animate_emission
 import os
 import re
 import subprocess
@@ -226,16 +227,24 @@ def train_unsupervised_hmm(seqs, obs_map, hidden_states, epochs):
 def load_hmm():
     A = np.loadtxt(open("A.csv", "rb"), delimiter=",")
     O = np.loadtxt(open("O.csv", "rb"), delimiter=",")
-    return HiddenMarkovModel(A, O)
+    return (A, O)
 
 start = time.time()
-hmm = train_unsupervised_hmm(obj, obs_map, 20, 500)
+hmm = train_unsupervised_hmm(obj, obs_map, 12, 500)
 end = time.time()
 elapsed1 = end - start
 print('elapsed time: {:.4} seconds'.format(end - start))
 print()
 
 print(generate_stanza_original(hmm, obs_map))
+
+obs_map_r = obs_map_reverser(obs_map)
+(A, O) = load_hmm()
+for i in range(12):
+    max_prob_words = np.flip(np.argsort(O[i]))[:10]
+    print(list(map(lambda i: obs_map_r[i], max_prob_words)))
+
+animate_emission(hmm, obs_map, M=12, height=12, width=12, delay=1)
 
 file = open('generated-poem.txt','w+') 
 for stanza in range(20):
